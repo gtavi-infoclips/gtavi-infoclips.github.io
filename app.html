@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FLIPA Publicador · Post to TikTok</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  main{max-width:760px}
+  .card{background:#16161d;border:1px solid #2a2a35;border-radius:14px;padding:18px 20px;margin:16px 0}
+  .row{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  .acct img{width:44px;height:44px;border-radius:50%;object-fit:cover}
+  .muted{color:#9a9aab;font-size:.92em}
+  label{display:block;margin:12px 0 6px;font-weight:600}
+  select,textarea,input[type=datetime-local]{width:100%;box-sizing:border-box;background:#0b0b0f;color:#fff;border:1px solid #33333f;border-radius:8px;padding:10px;font:inherit}
+  textarea{min-height:90px}
+  .check{display:flex;gap:10px;align-items:center;margin:8px 0;font-weight:400}
+  .check input{width:18px;height:18px}
+  .videos{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+  .vid{border:2px solid #2a2a35;border-radius:10px;padding:10px;cursor:pointer;background:#0f0f14}
+  .vid.sel{border-color:#FF2E88}
+  .preview{display:flex;justify-content:center}
+  .preview iframe{width:300px;height:533px;border:0;border-radius:12px;background:#000}
+  .btn{display:inline-block;background:#FF2E88;color:#fff;border:0;border-radius:999px;padding:12px 22px;font-weight:700;cursor:pointer;text-decoration:none}
+  .btn[disabled]{opacity:.4;cursor:not-allowed}
+  .btn.ghost{background:transparent;border:1px solid #444;color:#ddd}
+  .note{background:#1e1a10;border:1px solid #5c4a14;color:#ffd23f;border-radius:8px;padding:10px;margin:10px 0}
+  .ok{background:#0f1e14;border-color:#1f5c33;color:#7dffa8}
+  .err{background:#240f12;border-color:#6b1d27;color:#ff8a9b}
+  .hidden{display:none}
+  .sub{margin-left:28px}
+</style>
+</head>
+<body><main>
+<header><img src="icon-1024.png" alt="FLIPA" style="width:72px;border-radius:16px"></header>
+<h1>FLIPA Publicador</h1>
+<p class="muted">Post FLIPA's own videos to the FLIPA TikTok account. Nothing is posted without your explicit confirmation.</p>
+
+<!-- 1. Login -->
+<section id="login" class="card">
+  <h2>1 · Connect your TikTok account</h2>
+  <p class="muted">You will be redirected to TikTok to authorize <b>FLIPA Publicador</b> (scopes: <code>user.info.basic</code>, <code>video.publish</code>).</p>
+  <button class="btn" id="btnLogin">Continue with TikTok</button>
+</section>
+
+<!-- 2. Tool -->
+<section id="tool" class="hidden">
+  <div class="card row acct">
+    <img id="avatar" alt="">
+    <div><div class="muted">Posting to TikTok account</div><b id="nick"></b></div>
+    <span style="flex:1"></span>
+    <button class="btn ghost" id="btnLogout">Disconnect</button>
+  </div>
+
+  <div class="card">
+    <h2>2 · Choose a video</h2>
+    <div id="videos" class="videos"><span class="muted">Loading FLIPA's videos…</span></div>
+  </div>
+
+  <div id="form" class="card hidden">
+    <h2>3 · Post settings</h2>
+    <div class="preview"><iframe id="preview" allow="autoplay" title="Video preview"></iframe></div>
+
+    <label for="title">Caption</label>
+    <textarea id="title" maxlength="2200"></textarea>
+
+    <label for="privacy">Who can view this video</label>
+    <select id="privacy"><option value="" selected disabled>Select privacy</option></select>
+
+    <label>Allow users to</label>
+    <div class="check"><input type="checkbox" id="c_comment"><span>Comment</span></div>
+    <div class="check"><input type="checkbox" id="c_duet"><span>Duet</span></div>
+    <div class="check"><input type="checkbox" id="c_stitch"><span>Stitch</span></div>
+
+    <label>Content disclosure</label>
+    <div class="check"><input type="checkbox" id="disclose"><span>Disclose video content <span class="muted">— turn on if this video promotes yourself, a brand, product or service</span></span></div>
+    <div id="discloseBox" class="sub hidden">
+      <div class="check"><input type="checkbox" id="b_yours"><span><b>Your brand</b> — you are promoting yourself or your own business</span></div>
+      <div class="check"><input type="checkbox" id="b_branded"><span><b>Branded content</b> — you are promoting another brand or a third party</span></div>
+      <div id="discloseLabel" class="note hidden"></div>
+      <div id="discloseNeed" class="note hidden">You need to indicate if your content promotes yourself, a third party, or both.</div>
+    </div>
+
+    <label>When</label>
+    <div class="check"><input type="radio" name="when" id="w_now" checked><span>Post now</span></div>
+    <div class="check"><input type="radio" name="when" id="w_later"><span>Schedule (Spain time)</span></div>
+    <input type="datetime-local" id="whenAt" class="hidden">
+    <div class="check"><input type="checkbox" id="asDefault"><span class="muted">Use these settings for FLIPA's automatic queue</span></div>
+
+    <p id="consent" class="muted" style="margin-top:16px"></p>
+    <div id="durWarn" class="note err hidden"></div>
+    <button class="btn" id="btnPost" disabled>Post to TikTok</button>
+    <div id="result" class="note hidden"></div>
+  </div>
+</section>
+
+<footer><a href="/">Home</a> · <a href="terms.html">Terms of Service</a> · <a href="privacy.html">Privacy Policy</a> · Contact: gtavi.infoclips@gmail.com</footer>
+</main>
+
+<script>
+// Configuracion publica (el client key NO es secreto; el secreto vive solo en el backend de Apps Script).
+const CONFIG = {
+  clientKey: 'PON_AQUI_EL_CLIENT_KEY',
+  backend: 'PON_AQUI_LA_URL_EXEC_DE_APPS_SCRIPT',
+  redirect: 'https://gtavi-infoclips.github.io/app.html',
+  scopes: 'user.info.basic,video.publish'
+};
+const $ = id => document.getElementById(id);
+const PRIV = { PUBLIC_TO_EVERYONE: 'Everyone', MUTUAL_FOLLOW_FRIENDS: 'Friends', FOLLOWER_OF_CREATOR: 'Followers', SELF_ONLY: 'Only me' };
+let creator = null, chosen = null;
+
+async function api(action, extra) {
+  // text/plain evita la peticion previa CORS; Apps Script responde con JSON legible desde el navegador
+  const r = await fetch(CONFIG.backend, { method: 'POST', body: JSON.stringify(Object.assign({ action, sid: localStorage.flipaSid }, extra || {})) });
+  const j = await r.json();
+  if (!j.ok) throw new Error(j.error);
+  return j.data;
+}
+function show(el, msg, cls) { el.className = 'note ' + (cls || ''); el.textContent = msg; }
+
+// ---------- login
+$('btnLogin').onclick = () => {
+  const state = crypto.randomUUID();
+  sessionStorage.flipaState = state;
+  const u = new URL('https://www.tiktok.com/v2/auth/authorize/');
+  u.search = new URLSearchParams({ client_key: CONFIG.clientKey, scope: CONFIG.scopes, response_type: 'code', redirect_uri: CONFIG.redirect, state }).toString();
+  location.href = u.toString();
+};
+$('btnLogout').onclick = async () => { try { await api('logout'); } catch (e) {} localStorage.removeItem('flipaSid'); location.href = CONFIG.redirect; };
+
+async function init() {
+  const q = new URLSearchParams(location.search);
+  if (q.get('code')) {
+    if (q.get('state') !== sessionStorage.flipaState) { alertBox('Login failed (state mismatch). Please try again.'); return; }
+    try {
+      const d = await api('exchange', { code: q.get('code') });
+      localStorage.flipaSid = d.sid;
+    } catch (e) { alertBox('Login failed: ' + e.message); return; }
+    history.replaceState({}, '', CONFIG.redirect);
+  } else if (q.get('error')) { alertBox('TikTok authorization was cancelled: ' + q.get('error_description')); }
+  if (!localStorage.flipaSid) return;
+  try {
+    const me = await api('me');
+    $('nick').textContent = me.display_name || 'TikTok account';
+    if (me.avatar_url) $('avatar').src = me.avatar_url;
+    $('login').classList.add('hidden'); $('tool').classList.remove('hidden');
+    await loadCreator();
+    await loadVideos();
+  } catch (e) { localStorage.removeItem('flipaSid'); alertBox(e.message); }
+}
+function alertBox(m) { const d = document.createElement('div'); d.className = 'note err'; d.textContent = m; $('login').appendChild(d); }
+
+// ---------- creator info (obligatorio antes de mostrar el formulario)
+async function loadCreator() {
+  creator = await api('creator');
+  $('nick').textContent = creator.creator_nickname || $('nick').textContent;
+  if (creator.creator_avatar_url) $('avatar').src = creator.creator_avatar_url;
+  const sel = $('privacy');
+  (creator.privacy_level_options || []).forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = PRIV[v] || v; sel.appendChild(o); });
+  // Interacciones desactivadas por la configuracion de la cuenta: se muestran grises y no se pueden activar
+  [['comment_disabled', 'c_comment'], ['duet_disabled', 'c_duet'], ['stitch_disabled', 'c_stitch']].forEach(([k, id]) => {
+    if (creator[k]) { $(id).checked = false; $(id).disabled = true; $(id).parentElement.title = 'Disabled in your TikTok privacy settings'; }
+  });
+}
+
+// ---------- videos de la cola de FLIPA
+async function loadVideos() {
+  const list = await api('queue'), box = $('videos');
+  box.innerHTML = '';
+  if (!list.length) { box.innerHTML = '<span class="muted">No pending videos in FLIPA\'s queue.</span>'; return; }
+  list.forEach(v => {
+    const d = document.createElement('div');
+    d.className = 'vid';
+    d.innerHTML = '<b></b><div class="muted"></div>';
+    d.querySelector('b').textContent = v.title || v.id;
+    d.querySelector('div').textContent = v.tt_at ? 'Planned: ' + v.tt_at : v.id;
+    d.onclick = () => choose(v, d);
+    box.appendChild(d);
+  });
+}
+function choose(v, el) {
+  document.querySelectorAll('.vid').forEach(x => x.classList.remove('sel'));
+  el.classList.add('sel'); chosen = v;
+  $('preview').src = 'https://drive.google.com/file/d/' + v.drive + '/preview';
+  $('title').value = v.caption || v.title || '';
+  if (v.tt_at) { $('w_later').checked = true; $('whenAt').value = v.tt_at.replace(' ', 'T'); }
+  $('form').classList.remove('hidden'); $('result').classList.add('hidden');
+  refresh();
+}
+
+// ---------- reglas de la UX de TikTok
+['privacy', 'disclose', 'b_yours', 'b_branded', 'w_now', 'w_later', 'whenAt'].forEach(id => $(id).addEventListener('change', refresh));
+function refresh() {
+  const disclose = $('disclose').checked, yours = $('b_yours').checked, branded = $('b_branded').checked;
+  $('discloseBox').classList.toggle('hidden', !disclose);
+  if (!disclose) { $('b_yours').checked = false; $('b_branded').checked = false; }
+  // El contenido de marca no puede ser privado
+  const only = [...$('privacy').options].find(o => o.value === 'SELF_ONLY');
+  if (only) { only.disabled = disclose && branded; only.title = only.disabled ? 'Branded content visibility cannot be set to private.' : ''; }
+  if (disclose && branded && $('privacy').value === 'SELF_ONLY') $('privacy').value = '';
+  const lab = $('discloseLabel');
+  if (disclose && (yours || branded)) { lab.classList.remove('hidden'); lab.textContent = branded ? "Your photo/video will be labeled as 'Paid partnership'" : "Your photo/video will be labeled as 'Promotional content'"; }
+  else lab.classList.add('hidden');
+  $('discloseNeed').classList.toggle('hidden', !(disclose && !yours && !branded));
+  $('consent').innerHTML = (disclose && branded)
+    ? "By posting, you agree to TikTok's <a href='https://www.tiktok.com/legal/page/global/bc-policy/en' target='_blank'>Branded Content Policy</a> and <a href='https://www.tiktok.com/legal/page/global/music-usage-confirmation/en' target='_blank'>Music Usage Confirmation</a>."
+    : "By posting, you agree to TikTok's <a href='https://www.tiktok.com/legal/page/global/music-usage-confirmation/en' target='_blank'>Music Usage Confirmation</a>.";
+  $('whenAt').classList.toggle('hidden', !$('w_later').checked);
+  const okWhen = $('w_now').checked || !!$('whenAt').value;
+  $('btnPost').disabled = !(chosen && $('privacy').value && okWhen && !(disclose && !yours && !branded));
+}
+
+// ---------- publicar
+$('btnPost').onclick = async () => {
+  const btn = $('btnPost'), res = $('result');
+  btn.disabled = true;
+  const later = $('w_later').checked;
+  const body = {
+    row: chosen.row, drive: chosen.drive, title: $('title').value, privacy_level: $('privacy').value,
+    disable_comment: !$('c_comment').checked, disable_duet: !$('c_duet').checked, disable_stitch: !$('c_stitch').checked,
+    brand_organic_toggle: $('disclose').checked && $('b_yours').checked, brand_content_toggle: $('disclose').checked && $('b_branded').checked,
+    when: later ? $('whenAt').value.replace('T', ' ') : '', default_for_queue: $('asDefault').checked
+  };
+  show(res, later ? 'Saving the scheduled post…' : 'Uploading your video to TikTok…');
+  try {
+    const d = await api('publish', body);
+    if (d.scheduled) { show(res, 'Scheduled for ' + d.scheduled + ' (Spain time). It will be posted automatically.', 'ok'); return; }
+    show(res, 'Video sent. TikTok is processing it — it may take a few minutes to appear on your profile.', 'ok');
+    poll(d.publish_id);
+  } catch (e) { show(res, 'Could not post: ' + e.message, 'err'); btn.disabled = false; }
+};
+async function poll(id) {
+  for (let i = 0; i < 30; i++) {
+    await new Promise(r => setTimeout(r, 5000));
+    try {
+      const s = await api('status', { publish_id: id });
+      if (s.status === 'PUBLISH_COMPLETE') { show($('result'), 'Posted! It is now on your TikTok profile.', 'ok'); return; }
+      if (s.status === 'FAILED') { show($('result'), 'TikTok could not publish the video: ' + (s.fail_reason || 'unknown reason'), 'err'); return; }
+      show($('result'), 'TikTok is processing your video (' + (s.status || 'processing') + ')…', 'ok');
+    } catch (e) { /* reintenta */ }
+  }
+}
+init();
+</script>
+</body>
+</html>
